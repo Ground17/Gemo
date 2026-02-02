@@ -101,44 +101,39 @@ def decide_batch(client: genai.Client, model: str, jpeg: bytes, base_prompt: str
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
 async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Command:
-    # JPEG -> base64 (video blob)
-    b64 = base64.b64encode(jpeg).decode("utf-8")
-
-    # native-audio 모델은 오디오 프레임이 필요
+    # 1) 무음 오디오(PCM16 16kHz) 먼저 전송 (native-audio 모델 안정화)
     silence = make_silence_pcm16(rate=16000, duration_s=0.10)
-
-    # 오디오 + 비디오 전송
     await session.send_realtime_input(
-        audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000"),
-        video=types.Blob(data=b64, mime_type="image/jpeg"),
+        audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000")
+    )
+
+    # 2) 그 다음 비디오(JPEG 프레임) 전송 — send_realtime_input은 한 번에 하나만!
+    b64 = base64.b64encode(jpeg).decode("utf-8")
+    await session.send_realtime_input(
+        video=types.Blob(data=b64, mime_type="image/jpeg")
     )
 
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
-            # 1) tool_call이 오면 바로 파싱
             if msg.tool_call:
                 for fc in msg.tool_call.function_calls:
                     if fc.name != "set_rc_controls":
                         continue
+
                     args = fc.args or {}
                     cmd = _sanitize(
                         args.get("drive", "STOP"),
                         args.get("steer", "CENTER"),
                         args.get("reason", ""),
                     )
-                    # Live API는 tool response를 직접 보내야 함
+
+                    # Live API: tool response 필수
                     await session.send_tool_response(function_responses=[
                         types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
                     ])
                     return cmd
-
-            # 2) native-audio는 오디오(바이너리)만 줄 때가 있음 → 그건 그냥 무시하고 계속 기다림
-            #    (여기서 return 안 함)
-
-        # receive 루프가 끝나면 fallback
         return Command()
 
-    # ✅ 핵심: timeout 걸고, 안 오면 STOP/CENTER로 다음 루프로 넘어감
     try:
         return await asyncio.wait_for(wait_toolcall(), timeout=timeout_s)
     except asyncio.TimeoutError:
