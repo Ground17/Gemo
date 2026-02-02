@@ -100,49 +100,6 @@ def decide_batch(client: genai.Client, model: str, jpeg: bytes, base_prompt: str
 # -------------------------
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
-
-async def _decide_live_once(session, jpeg: bytes) -> Command:
-    # JPEG -> base64 (video blob)
-    b64 = base64.b64encode(jpeg).decode("utf-8")
-
-    # native-audio ??? "??? ???"? ??? ???? 1007 ??? ? ?? ???? ??
-    silence = make_silence_pcm16(rate=16000, duration_s=0.10)
-
-    # ??? + ???? ?? ??
-    await session.send_realtime_input(
-        audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000"),
-        video=types.Blob(data=b64, mime_type="image/jpeg"),
-    )
-
-    async for msg in session.receive():
-        # tool_call ??
-        if msg.tool_call:
-            for fc in msg.tool_call.function_calls:
-                if fc.name != "set_rc_controls":
-                    continue
-
-                args = fc.args or {}
-                cmd = _sanitize(
-                    args.get("drive", "STOP"),
-                    args.get("steer", "CENTER"),
-                    args.get("reason", ""),
-                )
-
-                # Live API? tool response? ?????? ?? ??? ?
-                await session.send_tool_response(function_responses=[
-                    types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
-                ])
-                return cmd
-
-        # ??? ???? ??? tool_call? ??? fallback
-        if msg.server_content and msg.server_content.model_turn:
-            return Command()
-
-    return Command()
-
-# -------------------------
-# Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
-# -------------------------
 async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Command:
     # JPEG -> base64 (video blob)
     b64 = base64.b64encode(jpeg).decode("utf-8")

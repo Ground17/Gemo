@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-cd /home/pi/gemo
+cd /home/ground17/gemo
 source venv/bin/activate
-python rc_autodrive_gemini_gpio.py
+python /home/ground17/gemo/gemo_main.py
