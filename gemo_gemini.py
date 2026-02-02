@@ -5,6 +5,9 @@ from typing import Literal
 from google import genai
 from google.genai import types
 
+import asyncio
+import websockets
+
 Drive = Literal["FORWARD", "STOP", "REVERSE"]
 Steer = Literal["LEFT", "CENTER", "RIGHT"]
 
@@ -140,29 +143,49 @@ async def _decide_live_once(session, jpeg: bytes) -> Command:
 # -------------------------
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
-async def _decide_live_once(session, jpeg: bytes) -> Command:
+async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Command:
+    # JPEG -> base64 (video blob)
     b64 = base64.b64encode(jpeg).decode("utf-8")
-    await session.send_realtime_input(video=types.Blob(data=b64, mime_type="image/jpeg"))
 
-    async for msg in session.receive():
-        if msg.tool_call:
-            for fc in msg.tool_call.function_calls:
-                if fc.name != "set_rc_controls":
-                    continue
-                args = fc.args or {}
-                cmd = _sanitize(args.get("drive","STOP"), args.get("steer","CENTER"), args.get("reason",""))
+    # native-audio 모델은 오디오 프레임이 필요
+    silence = make_silence_pcm16(rate=16000, duration_s=0.10)
 
-                # Live API? tool response? ?????? ?? ??? ?
-                await session.send_tool_response(function_responses=[
-                    types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
-                ])
-                return cmd
+    # 오디오 + 비디오 전송
+    await session.send_realtime_input(
+        audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000"),
+        video=types.Blob(data=b64, mime_type="image/jpeg"),
+    )
 
-        # ??? ???? ??? tool_call? ??? fallback
-        if msg.server_content and msg.server_content.model_turn:
-            return Command()
+    async def wait_toolcall() -> Command:
+        async for msg in session.receive():
+            # 1) tool_call이 오면 바로 파싱
+            if msg.tool_call:
+                for fc in msg.tool_call.function_calls:
+                    if fc.name != "set_rc_controls":
+                        continue
+                    args = fc.args or {}
+                    cmd = _sanitize(
+                        args.get("drive", "STOP"),
+                        args.get("steer", "CENTER"),
+                        args.get("reason", ""),
+                    )
+                    # Live API는 tool response를 직접 보내야 함
+                    await session.send_tool_response(function_responses=[
+                        types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
+                    ])
+                    return cmd
 
-    return Command()
+            # 2) native-audio는 오디오(바이너리)만 줄 때가 있음 → 그건 그냥 무시하고 계속 기다림
+            #    (여기서 return 안 함)
+
+        # receive 루프가 끝나면 fallback
+        return Command()
+
+    # ✅ 핵심: timeout 걸고, 안 오면 STOP/CENTER로 다음 루프로 넘어감
+    try:
+        return await asyncio.wait_for(wait_toolcall(), timeout=timeout_s)
+    except asyncio.TimeoutError:
+        return Command()
     
 # =========================
 # Public Live-loop wrapper
@@ -176,22 +199,32 @@ async def run_live_loop(
 ):
     client = make_client()
 
-    # native-audio ??? TEXT-only ?????? ??? ?? ???? ??
-    # ???? AUDIO? ?? (??? ??? ??)
     config = {
         "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
+        # native-audio는 AUDIO 모달리티가 안정적
         "response_modalities": ["AUDIO"],
     }
 
-    async with client.aio.live.connect(model=model, config=config) as session:
-        # ?? ???? 1? ?? (???)
-        await session.send_client_content(
-            turns={"role": "user", "parts": [{"text": base_prompt}]},
-            turn_complete=True,
-        )
+    while True:
+        try:
+            async with client.aio.live.connect(model=model, config=config) as session:
+                await session.send_client_content(
+                    turns={"role": "user", "parts": [{"text": base_prompt}]},
+                    turn_complete=True,
+                )
 
-        while True:
-            jpeg = frame_provider()
-            cmd = await _decide_live_once(session, jpeg)
-            on_command(cmd)
-            await asyncio.sleep(loop_delay_s)
+                while True:
+                    jpeg = frame_provider()
+
+                    # ✅ timeout 포함: tool_call이 안 오면 기본값 반환하고 다음 프레임으로 계속
+                    cmd = await _decide_live_once(session, jpeg, timeout_s=1.5)
+                    on_command(cmd)
+
+                    await asyncio.sleep(loop_delay_s)
+
+        except (websockets.exceptions.ConnectionClosedError,
+                websockets.exceptions.ConnectionClosedOK,
+                Exception) as e:
+            # 연결이 끊기거나 서버가 세션을 닫으면 여기로 옴 → 잠깐 쉬고 자동 재연결
+            print(f"[LIVE] reconnecting due to: {type(e).__name__}: {e}")
+            await asyncio.sleep(1.0)
