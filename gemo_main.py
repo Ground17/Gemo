@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from picamera2 import Picamera2
+from gpiozero import DigitalOutputDevice
 
 from gemo_gpio import TB6612Channel, SteeringPulse
 from gemo_gemini import make_client, decide_batch, run_live_loop, Command
@@ -64,8 +65,14 @@ def main():
     cam.start()
 
     # gpio
-    drive_ch = TB6612Channel(pwm_pin=PWMA, in1_pin=AIN1, in2_pin=AIN2, stby_pin=STBY)
-    steer_ch = TB6612Channel(pwm_pin=PWMB, in1_pin=BIN1, in2_pin=BIN2, stby_pin=STBY)
+    stby = DigitalOutputDevice(STBY, initial_value=True)
+
+    drive_ch = TB6612Channel(
+        pwm_pin=PWMA, in1_pin=AIN1, in2_pin=AIN2, stby=stby
+    )
+    steer_ch = TB6612Channel(
+        pwm_pin=PWMB, in1_pin=BIN1, in2_pin=BIN2, stby=stby
+)
     steer = SteeringPulse(steer_ch, pulse_s=args.steer_pulse, power=args.steer_power)
 
     period = 1.0 / max(1.0, args.fps)

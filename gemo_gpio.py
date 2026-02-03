@@ -50,13 +50,13 @@ class TB6612Channel:
         pwm_pin: int,
         in1_pin: int,
         in2_pin: int,
-        stby_pin: int,
+        stby,
         pwm_freq: int = 1000,
     ):
         self.pwm = PWMOutputDevice(pwm_pin, frequency=pwm_freq, initial_value=0.0)
         self.in1 = DigitalOutputDevice(in1_pin, initial_value=False)
         self.in2 = DigitalOutputDevice(in2_pin, initial_value=False)
-        self.stby = DigitalOutputDevice(stby_pin, initial_value=True)
+        self.stby = stby
 
     def _enable(self):
         # Some breakouts require STBY HIGH to run
