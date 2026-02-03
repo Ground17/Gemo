@@ -4,12 +4,14 @@ load_dotenv()
 
 from picamera2 import Picamera2
 
-from gemo_gpio import L298NChannel, SteeringPulse
+from gemo_gpio import TB6612Channel, SteeringPulse
 from gemo_gemini import make_client, decide_batch, run_live_loop, Command
 
-# ===== GPIO ? (BCM) =====
-ENA, IN1, IN2 = 18, 23, 24     # drive A
-ENB, IN3, IN4 = 19, 27, 22     # steer B
+# ===== GPIO pins (BCM) =====
+# TB6612FNG: PWMA/AIN1/AIN2 for motor A, PWMB/BIN1/BIN2 for motor B, STBY shared
+PWMA, AIN1, AIN2 = 18, 23, 24     # drive (A)
+PWMB, BIN1, BIN2 = 19, 27, 22     # steer (B)
+STBY = 25                         # standby (shared)
 
 DEFAULT_BATCH_MODEL = "gemini-3-flash-preview"
 DEFAULT_LIVE_MODEL  = "gemini-2.5-flash-native-audio-preview-12-2025"
@@ -19,7 +21,7 @@ def capture_jpeg_bytes(cam: Picamera2) -> bytes:
     cam.capture_file(buf, format="jpeg")
     return buf.getvalue()
 
-def apply_cmd(cmd: Command, drive_ch: L298NChannel, steer: SteeringPulse, drive_speed: float):
+def apply_cmd(cmd: Command, drive_ch: TB6612Channel, steer: SteeringPulse, drive_speed: float):
     if cmd.drive == "FORWARD":
         drive_ch.forward(drive_speed)
     elif cmd.drive == "REVERSE":
@@ -62,8 +64,8 @@ def main():
     cam.start()
 
     # gpio
-    drive_ch = L298NChannel(ENA, IN1, IN2)
-    steer_ch = L298NChannel(ENB, IN3, IN4)
+    drive_ch = TB6612Channel(pwm_pin=PWMA, in1_pin=AIN1, in2_pin=AIN2, stby_pin=STBY)
+    steer_ch = TB6612Channel(pwm_pin=PWMB, in1_pin=BIN1, in2_pin=BIN2, stby_pin=STBY)
     steer = SteeringPulse(steer_ch, pulse_s=args.steer_pulse, power=args.steer_power)
 
     period = 1.0 / max(1.0, args.fps)
@@ -98,8 +100,10 @@ def main():
             ))
 
     finally:
+        # Ensure motors are stopped and steering centered
         drive_ch.stop()
         steer.center()
+        steer_ch.stop()
         cam.stop()
 
 if __name__ == "__main__":
