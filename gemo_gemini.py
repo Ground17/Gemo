@@ -33,10 +33,10 @@ TOOLS_DECL = types.Tool(function_declarations=[{
 }])
 
 BASE_PROMPT_DEFAULT = (
-    "You are an autonomous RC car controller. "
-    "Analyze the front camera image and decide the safest drive/steer. "
-    "If uncertain, choose STOP and CENTER. "
-    "You MUST respond by calling function set_rc_controls."
+    # "You are an autonomous RC car controller. "
+    # "Analyze the front camera image and decide the safest drive/steer. "
+    # "If uncertain, choose STOP and CENTER. "
+    # "You MUST respond by calling function set_rc_controls."
     "The reason must be a short noun phrase, no punctuation."
 )
 
