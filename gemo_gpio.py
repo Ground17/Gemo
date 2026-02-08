@@ -119,3 +119,37 @@ class SteeringPulse:
         self.ch.reverse(self.power)
         time.sleep(self.pulse_s)
         self.ch.stop()
+
+
+class DrivePulse:
+    """
+    Drive motor pulser:
+    - FORWARD/REVERSE are short pulses, then STOP.
+    - Prevents continuous drive when commands repeat quickly.
+    """
+    def __init__(self, ch: MotorChannel, pulse_s: float = 0.12, min_interval: float = 0.05):
+        self.ch = ch
+        self.pulse_s = pulse_s
+        self.min_interval = min_interval
+        self._last = 0.0
+
+    def stop(self):
+        self.ch.stop()
+
+    def forward(self, speed: float):
+        now = time.time()
+        if now - self._last < self.min_interval:
+            return
+        self._last = now
+        self.ch.forward(speed)
+        time.sleep(self.pulse_s)
+        self.ch.stop()
+
+    def reverse(self, speed: float):
+        now = time.time()
+        if now - self._last < self.min_interval:
+            return
+        self._last = now
+        self.ch.reverse(speed)
+        time.sleep(self.pulse_s)
+        self.ch.stop()

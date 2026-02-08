@@ -5,7 +5,7 @@ load_dotenv()
 from picamera2 import Picamera2
 from gpiozero import DigitalOutputDevice
 
-from gemo_gpio import TB6612Channel, SteeringPulse
+from gemo_gpio import TB6612Channel, SteeringPulse, DrivePulse
 from gemo_gemini import make_client, decide_batch, run_live_loop, Command
 
 # ===== GPIO pins (BCM) =====
@@ -43,6 +43,7 @@ def main():
     ap.add_argument("--model", default=None)
     ap.add_argument("--fps", type=float, default=5.0)
     ap.add_argument("--drive_speed", type=float, default=0.45)
+    ap.add_argument("--drive_pulse", type=float, default=0.12)
     ap.add_argument("--steer_pulse", type=float, default=0.10)
     ap.add_argument("--steer_power", type=float, default=0.80)
     args = ap.parse_args()
@@ -67,9 +68,10 @@ def main():
     # gpio
     stby = DigitalOutputDevice(STBY, initial_value=True)
 
-    drive_ch = TB6612Channel(
+    drive_raw = TB6612Channel(
         pwm_pin=PWMA, in1_pin=AIN1, in2_pin=AIN2, stby=stby
     )
+    drive_ch = DrivePulse(drive_raw, pulse_s=args.drive_pulse)
     steer_ch = TB6612Channel(
         pwm_pin=PWMB, in1_pin=BIN1, in2_pin=BIN2, stby=stby
 )
@@ -77,16 +79,26 @@ def main():
 
     period = 1.0 / max(1.0, args.fps)
 
+    def format_cmd_log(cmd: Command, dt_s: float) -> str:
+        base = f"{cmd.drive}/{cmd.steer}"
+        if cmd.reason:
+            base += f" | {cmd.reason}"
+        base += f" | +{dt_s:.3f}s"
+        return base
+
     print(f"GEMO start | mode={args.mode} model={args.model}")
     try:
         if args.mode == "batch":
             client = make_client()
+            last_print = time.monotonic()
             while True:
                 t0 = time.time()
                 jpeg = capture_jpeg_bytes(cam)
                 cmd = decide_batch(client, args.model, jpeg)
                 apply_cmd(cmd, drive_ch, steer, args.drive_speed)
-                print(f"{cmd.drive}/{cmd.steer}" + (f" | {cmd.reason}" if cmd.reason else ""))
+                now = time.monotonic()
+                print(format_cmd_log(cmd, now - last_print))
+                last_print = now
                 dt = time.time() - t0
                 if dt < period:
                     time.sleep(period - dt)
@@ -95,9 +107,13 @@ def main():
             def frame_provider():
                 return capture_jpeg_bytes(cam)
 
+            last_print = time.monotonic()
             def on_command(cmd: Command):
+                nonlocal last_print
                 apply_cmd(cmd, drive_ch, steer, args.drive_speed)
-                print(f"{cmd.drive}/{cmd.steer}" + (f" | {cmd.reason}" if cmd.reason else ""))
+                now = time.monotonic()
+                print(format_cmd_log(cmd, now - last_print))
+                last_print = now
 
             asyncio.run(run_live_loop(
                 model=args.model,

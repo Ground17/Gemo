@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from google import genai
-from google.genai import types
+from google.genai import types, errors as genai_errors
 
 import asyncio
 import websockets
@@ -66,7 +66,14 @@ def _sanitize(drive: str, steer: str, reason: str = "") -> Command:
 # -------------------------
 # Batch (generate_content) : gemini-3-flash-preview / gemini-3-pro-preview / robotics-er
 # -------------------------
-def decide_batch(client: genai.Client, model: str, jpeg: bytes, base_prompt: str = BASE_PROMPT_DEFAULT) -> Command:
+def decide_batch(
+    client: genai.Client,
+    model: str,
+    jpeg: bytes,
+    base_prompt: str = BASE_PROMPT_DEFAULT,
+    max_retries: int = 2,
+    retry_delay_s: float = 0.4,
+) -> Command:
     if model == "gemini-3-pro-preview":
         thinking_cfg = types.ThinkingConfig(thinking_budget=128)
     else:
@@ -78,16 +85,27 @@ def decide_batch(client: genai.Client, model: str, jpeg: bytes, base_prompt: str
         thinking_config=thinking_cfg,
     )
 
-    resp = client.models.generate_content(
-        model=model,
-        contents=[
-            types.Part(text=base_prompt),
-            types.Part.from_bytes(data=jpeg, mime_type="image/jpeg"),
-        ],
-        config=cfg,
-    )
+    resp = None
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=[
+                    types.Part(text=base_prompt),
+                    types.Part.from_bytes(data=jpeg, mime_type="image/jpeg"),
+                ],
+                config=cfg,
+            )
+            break
+        except (genai_errors.ServerError, genai_errors.APIError, Exception) as e:
+            if attempt >= max_retries:
+                print(f"[BATCH] generate_content failed: {type(e).__name__}: {e}")
+                return Command()
+            time.sleep(retry_delay_s * (2 ** attempt))
 
     try:
+        if resp is None:
+            return Command()
         parts = resp.candidates[0].content.parts
         fc = next((p.function_call for p in parts if getattr(p, "function_call", None)), None)
         if not fc or fc.name != "set_rc_controls":
