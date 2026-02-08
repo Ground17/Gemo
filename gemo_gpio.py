@@ -88,9 +88,9 @@ class TB6612Channel:
 
 class SteeringPulse:
     """
-    2? DC ??(??? ???) ??:
-    - CENTER: ?? OFF (?? ??)
-    - LEFT/RIGHT: ?? ?? ? OFF
+    Two-pin DC motor steering pulse:
+    - CENTER: motor off (coast)
+    - LEFT/RIGHT: pulse briefly, then off
     """
     def __init__(self, ch: MotorChannel, pulse_s: float = 0.10, power: float = 0.80):
         self.ch = ch

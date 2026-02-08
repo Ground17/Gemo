@@ -119,13 +119,13 @@ def decide_batch(
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
 async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Command:
-    # 1) 무음 오디오(PCM16 16kHz) 먼저 전송 (native-audio 모델 안정화)
+    # 1) Send silence (PCM16 16kHz) first to stabilize the native-audio model.
     silence = make_silence_pcm16(rate=16000, duration_s=0.10)
     await session.send_realtime_input(
         audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000")
     )
 
-    # 2) 그 다음 비디오(JPEG 프레임) 전송 — send_realtime_input은 한 번에 하나만!
+    # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
     b64 = base64.b64encode(jpeg).decode("utf-8")
     await session.send_realtime_input(
         video=types.Blob(data=b64, mime_type="image/jpeg")
@@ -145,7 +145,7 @@ async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Com
                         args.get("reason", ""),
                     )
 
-                    # Live API: tool response 필수
+                    # Live API: tool response is required.
                     await session.send_tool_response(function_responses=[
                         types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
                     ])
@@ -171,7 +171,7 @@ async def run_live_loop(
 
     config = {
         "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
-        # native-audio는 AUDIO 모달리티가 안정적
+        # native-audio is most stable with AUDIO modality.
         "response_modalities": ["AUDIO"],
     }
 
@@ -186,7 +186,7 @@ async def run_live_loop(
                 while True:
                     jpeg = frame_provider()
 
-                    # ✅ timeout 포함: tool_call이 안 오면 기본값 반환하고 다음 프레임으로 계속
+                    # Timeout: if no tool_call arrives, return defaults and continue.
                     cmd = await _decide_live_once(session, jpeg, timeout_s=1.5)
                     on_command(cmd)
 
@@ -195,6 +195,6 @@ async def run_live_loop(
         except (websockets.exceptions.ConnectionClosedError,
                 websockets.exceptions.ConnectionClosedOK,
                 Exception) as e:
-            # 연결이 끊기거나 서버가 세션을 닫으면 여기로 옴 → 잠깐 쉬고 자동 재연결
+            # If the connection drops or the server closes the session, pause and reconnect.
             print(f"[LIVE] reconnecting due to: {type(e).__name__}: {e}")
             await asyncio.sleep(1.0)

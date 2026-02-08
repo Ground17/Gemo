@@ -1,43 +1,53 @@
-# Gemo - Gemini을 이용한 RC카 제어
+# Gemo - RC Car Control with Gemini
 
-## 개요
-Gemo는 Google Gemini AI와 라즈베리파이 카메라, GPIO를 활용하여 RC카를 자동으로 제어하는 프로젝트입니다.
+## Overview
+Gemo is an RC car controller that uses Google Gemini, a Raspberry Pi camera, and GPIO motor drivers to decide drive/steer commands from camera frames.
 
-## 필요한 것
-- 라즈베리파이 4/5
-- 라즈베리파이 카메라
-- L298N 모터 드라이버
-- DC 모터 (구동, 조향용)
-- Google Gemini API 키
+## Requirements
+- Raspberry Pi 4/5
+- Raspberry Pi Camera
+- TB6612FNG (or L298N) motor driver
+- DC motors (drive + steering)
+- Google Gemini API key
 
-## 사용법
+## Features
+- Batch mode: capture a frame, ask Gemini for a control command, apply it, repeat.
+- Live mode: persistent WebSocket session with native-audio model.
+- Safe command defaults: invalid or missing tool calls fall back to `STOP/CENTER`.
+- Drive pulse control: forward/reverse are short pulses followed by stop to prevent continuous driving.
+- Steering pulse control: short left/right pulses with a minimum interval.
+- Logging includes command, reason (optional), and elapsed time since the last log.
+- Retry handling for transient 500 errors in batch mode.
 
-### 기본 실행 (배치 모드)
+## Usage
+
+### Basic run (batch mode)
 ```bash
 python gemo_main.py
 ```
 
-### 라이브 모드 (실시간 오디오)
+### Live mode (native-audio)
 ```bash
 python gemo_main.py --mode live
 ```
 
-### 특정 모델 사용
+### Choose a specific model
 ```bash
 python gemo_main.py --model gemini-3-flash-preview
 python gemo_main.py --model gemini-2.5-flash-native-audio-preview-12-2025
 ```
 
-## 옵션
-- `--mode`: 실행 모드 (batch/live, 기본값: batch)
-- `--model`: 사용할 Gemini 모델
-- `--fps`: 프레임 속도 (기본값: 5.0)
-- `--drive_speed`: 구동 속도 (기본값: 0.45)
-- `--steer_pulse`: 조향 펄스 (기본값: 0.10)
-- `--steer_power`: 조향 전력 (기본값: 0.80)
+## Options
+- `--mode`: Run mode (`batch`/`live`, default: `batch`)
+- `--model`: Gemini model to use
+- `--fps`: Frame rate (default: `5.0`)
+- `--drive_speed`: Drive speed (default: `0.45`)
+- `--drive_pulse`: Drive pulse duration in seconds (default: `0.12`)
+- `--steer_pulse`: Steering pulse duration in seconds (default: `0.10`)
+- `--steer_power`: Steering power (default: `0.80`)
 
-## 구성
-- `gemo_main.py`: 메인 애플리케이션
-- `gemo_gemini.py`: Gemini API 통합
-- `gemo_gpio.py`: GPIO 제어
-- `run.sh`: 실행 스크립트
+## Files
+- `gemo_main.py`: Main application
+- `gemo_gemini.py`: Gemini API integration (batch + live)
+- `gemo_gpio.py`: GPIO motor control utilities
+- `run.sh`: Run script

@@ -49,23 +49,23 @@ def main():
     args = ap.parse_args()
 
     if args.mode == "live":
-        # live ??? model ??? ???? native-audio? ??
+        # Live mode uses the native-audio preview model by default.
         args.model = DEFAULT_LIVE_MODEL
     else:
-        # batch ?? ??? 3-flash
+        # Batch mode defaults to 3-flash preview unless overridden.
         if args.model is None:
             args.model = DEFAULT_BATCH_MODEL
 
-    # ?? ??
+    # API key / Vertex config check
     if not os.getenv("GEMINI_API_KEY") and not (os.getenv("VERTEX_PROJECT") and os.getenv("VERTEX_LOCATION")):
         raise RuntimeError("GEMINI_API_KEY(.env) ?? VERTEX_PROJECT/LOCATION(.env)? ????.")
 
-    # camera
+    # Camera
     cam = Picamera2()
     cam.configure(cam.create_still_configuration(main={"size": (640, 360)}))
     cam.start()
 
-    # gpio
+    # GPIO
     stby = DigitalOutputDevice(STBY, initial_value=True)
 
     drive_raw = TB6612Channel(
