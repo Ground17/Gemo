@@ -51,6 +51,9 @@ def main():
     if args.mode == "live":
         # Live mode uses the native-audio preview model by default.
         args.model = DEFAULT_LIVE_MODEL
+        # Live video input is expected at ~1 FPS.
+        if args.fps > 1.0:
+            args.fps = 1.0
     else:
         # Batch mode defaults to 3-flash preview unless overridden.
         if args.model is None:

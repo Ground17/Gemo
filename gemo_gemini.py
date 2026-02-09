@@ -171,13 +171,16 @@ async def run_live_loop(
         "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
         # native-audio is most stable with AUDIO modality.
         "response_modalities": ["AUDIO"],
+        # Use enum value per Live API docs.
+        "media_resolution": types.MediaResolution.MEDIA_RESOLUTION_LOW,
     }
 
     while True:
         try:
             async with client.aio.live.connect(model=model, config=config) as session:
                 await session.send_client_content(
-                    turns={"parts": [{"text": base_prompt}]}
+                    turns={"role": "user", "parts": [{"text": base_prompt}]},
+                    turn_complete=True,
                 )
 
                 while True:
