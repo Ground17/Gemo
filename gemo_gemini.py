@@ -165,7 +165,7 @@ async def run_live_loop(
     client = make_client()
 
     config = types.LiveConnectConfig(
-        response_modalities=["AUDIO"],
+        response_modalities=["TEXT"],
         tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
     )
 

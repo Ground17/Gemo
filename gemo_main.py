@@ -65,11 +65,7 @@ def main():
 
     # Camera
     cam = Picamera2()
-    cam_size = (640, 360)
-    if args.mode == "live":
-        # Live video input is most stable with square frames.
-        cam_size = (768, 768)
-    cam.configure(cam.create_still_configuration(main={"size": cam_size}))
+    cam.configure(cam.create_still_configuration(main={"size": (640, 360)}))
     cam.start()
 
     # GPIO
