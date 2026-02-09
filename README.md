@@ -33,8 +33,8 @@ python gemo_main.py --mode live
 
 ### Choose a specific model
 ```bash
-python gemo_main.py --model gemini-3-flash-preview
-python gemo_main.py --model gemini-2.5-flash-native-audio-preview-12-2025
+python gemo_main.py --model gemini-3-pro-preview
+python gemo_main.py --model gemini-robotics-er-1.5-preview
 ```
 
 ## Options
