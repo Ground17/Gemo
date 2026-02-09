@@ -118,7 +118,7 @@ def decide_batch(
 # -------------------------
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
-async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Command:
+async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 2.5) -> Command:
     # 1) Send silence (PCM16 16kHz) first to stabilize the native-audio model.
     silence = make_silence_pcm16(rate=16000, duration_s=0.10)
     await session.send_realtime_input(
@@ -150,12 +150,12 @@ async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 1.5) -> Com
                         types.FunctionResponse(id=fc.id, name=fc.name, response={"result": "ok"})
                     ])
                     return cmd
-        return Command()
+        return Command(reason="no_tool_call")
 
     try:
         return await asyncio.wait_for(wait_toolcall(), timeout=timeout_s)
     except asyncio.TimeoutError:
-        return Command()
+        return Command(reason="timeout")
     
 # =========================
 # Public Live-loop wrapper
