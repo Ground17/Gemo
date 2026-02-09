@@ -1,11 +1,10 @@
-import os, base64, asyncio, time
+import os, asyncio, time
 from dataclasses import dataclass
 from typing import Literal
 
 from google import genai
 from google.genai import types, errors as genai_errors
 
-import asyncio
 import websockets
 
 Drive = Literal["FORWARD", "STOP", "REVERSE"]
@@ -126,9 +125,8 @@ async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 2.5) -> Com
     )
 
     # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
-    b64 = base64.b64encode(jpeg).decode("utf-8")
     await session.send_realtime_input(
-        video=types.Blob(data=b64, mime_type="image/jpeg")
+        media=types.Blob(data=jpeg, mime_type="image/jpeg")
     )
 
     async def wait_toolcall() -> Command:
@@ -173,21 +171,22 @@ async def run_live_loop(
         "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
         # native-audio is most stable with AUDIO modality.
         "response_modalities": ["AUDIO"],
+        # Lower resolution reduces token usage/latency for live video.
+        "media_resolution": "low",
     }
 
     while True:
         try:
             async with client.aio.live.connect(model=model, config=config) as session:
                 await session.send_client_content(
-                    turns={"role": "user", "parts": [{"text": base_prompt}]},
-                    turn_complete=True,
+                    turns={"parts": [{"text": base_prompt}]}
                 )
 
                 while True:
                     jpeg = frame_provider()
 
                     # Timeout: if no tool_call arrives, return defaults and continue.
-                    cmd = await _decide_live_once(session, jpeg, timeout_s=1.5)
+                    cmd = await _decide_live_once(session, jpeg)
                     on_command(cmd)
 
                     await asyncio.sleep(loop_delay_s)
