@@ -130,7 +130,7 @@ async def _decide_live_once(
 
     # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
     b64 = base64.b64encode(jpeg).decode("utf-8")
-    await session.send_realtime_input(video={"data": b64, "mime_type": "image/jpeg"})
+    await session.send_realtime_input(media={"data": b64, "mime_type": "image/jpeg"})
 
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
@@ -170,7 +170,8 @@ async def run_live_loop(
 ):
     client = make_client()
 
-    response_modalities = ["TEXT"]
+    # native-audio models require AUDIO modality.
+    response_modalities = ["AUDIO"] if "native-audio" in model else ["TEXT"]
     config = types.LiveConnectConfig(
         response_modalities=response_modalities,
         tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
@@ -179,7 +180,10 @@ async def run_live_loop(
 
     while True:
         try:
-            async with client.aio.live.connect(model=model, config=config) as session:
+            live_model = model
+            if "/" not in live_model:
+                live_model = f"models/{live_model}"
+            async with client.aio.live.connect(model=live_model, config=config) as session:
                 await session.send_client_content(
                     turns=types.Content(parts=[types.Part(text=base_prompt)]),
                     turn_complete=True,
