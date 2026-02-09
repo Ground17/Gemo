@@ -117,21 +117,7 @@ def decide_batch(
 # -------------------------
 # Live (WebSocket session) : gemini-2.5-flash-native-audio-preview-12-2025
 # -------------------------
-async def _decide_live_once(
-    session,
-    jpeg: bytes,
-    timeout_s: float = 2.5,
-    send_audio: bool = True,
-) -> Command:
-    # 1) Optionally send silence (PCM16 16kHz). Only needed for AUDIO modality.
-    if send_audio:
-        silence = make_silence_pcm16(rate=16000, duration_s=0.10)
-        await session.send_realtime_input(audio={"data": silence, "mime_type": "audio/pcm"})
-
-    # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
-    b64 = base64.b64encode(jpeg).decode("utf-8")
-    await session.send_realtime_input(media={"data": b64, "mime_type": "image/jpeg"})
-
+async def _wait_toolcall(session, timeout_s: float = 2.5) -> Command:
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
             if msg.tool_call:
@@ -178,6 +164,17 @@ async def run_live_loop(
     )
     send_audio = "AUDIO" in response_modalities
 
+    async def send_realtime(session, out_queue: asyncio.Queue):
+        try:
+            while True:
+                msg = await out_queue.get()
+                if msg["mime_type"].startswith("audio/"):
+                    await session.send_realtime_input(audio=msg)
+                else:
+                    await session.send_realtime_input(media=msg)
+        except asyncio.CancelledError:
+            pass
+
     while True:
         try:
             live_model = model
@@ -189,14 +186,34 @@ async def run_live_loop(
                     turn_complete=True,
                 )
 
+                out_queue = asyncio.Queue(maxsize=5)
+                send_task = asyncio.create_task(send_realtime(session, out_queue))
+
                 while True:
                     jpeg = frame_provider()
 
+                    if send_audio:
+                        silence = make_silence_pcm16(rate=16000, duration_s=0.10)
+                        try:
+                            out_queue.put_nowait({"data": silence, "mime_type": "audio/pcm"})
+                        except asyncio.QueueFull:
+                            _ = out_queue.get_nowait()
+                            out_queue.put_nowait({"data": silence, "mime_type": "audio/pcm"})
+
+                    b64 = base64.b64encode(jpeg).decode("utf-8")
+                    try:
+                        out_queue.put_nowait({"data": b64, "mime_type": "image/jpeg"})
+                    except asyncio.QueueFull:
+                        _ = out_queue.get_nowait()
+                        out_queue.put_nowait({"data": b64, "mime_type": "image/jpeg"})
+
                     # Timeout: if no tool_call arrives, return defaults and continue.
-                    cmd = await _decide_live_once(session, jpeg, send_audio=send_audio)
+                    cmd = await _wait_toolcall(session)
                     on_command(cmd)
 
                     await asyncio.sleep(loop_delay_s)
+
+                send_task.cancel()
 
         except (websockets.exceptions.ConnectionClosedError,
                 websockets.exceptions.ConnectionClosedOK,
