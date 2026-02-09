@@ -30,8 +30,18 @@ def apply_cmd(cmd: Command, drive_ch: TB6612Channel, steer: SteeringPulse, drive
         steer_action = steer.right
 
     if steer_action and cmd.drive in ("FORWARD", "REVERSE"):
-        # When moving, pulse steering before and after the drive pulse.
+        # When moving, keep steering pulses before/during/after the drive pulse.
         steer_action()
+        if cmd.drive == "FORWARD":
+            drive_ch.ch.forward(drive_speed)
+        else:
+            drive_ch.ch.reverse(drive_speed)
+        t_end = time.time() + drive_ch.pulse_s
+        while time.time() < t_end:
+            steer_action()
+        drive_ch.ch.stop()
+        steer.center()
+        return
 
     if cmd.drive == "FORWARD":
         drive_ch.forward(drive_speed)
@@ -51,7 +61,7 @@ def main():
     ap.add_argument("--model", default=None)
     ap.add_argument("--fps", type=float, default=5.0)
     ap.add_argument("--drive_speed", type=float, default=0.45)
-    ap.add_argument("--drive_pulse", type=float, default=1.20)
+    ap.add_argument("--drive_pulse", type=float, default=0.50)
     ap.add_argument("--steer_pulse", type=float, default=0.10)
     ap.add_argument("--steer_power", type=float, default=0.80)
     args = ap.parse_args()
