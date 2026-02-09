@@ -175,8 +175,6 @@ async def run_live_loop(
     while True:
         try:
             live_model = model
-            if "native-audio" in live_model and "preview-12-2025" in live_model:
-                live_model = live_model.replace("preview-12-2025", "preview-09-2025")
             if "/" not in live_model:
                 live_model = f"models/{live_model}"
             async with client.aio.live.connect(model=live_model, config=config) as session:
