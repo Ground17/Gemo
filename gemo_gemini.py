@@ -166,7 +166,7 @@ async def run_live_loop(
     response_modalities = ["AUDIO"] if "native-audio" in model else ["TEXT"]
     config = types.LiveConnectConfig(
         response_modalities=response_modalities,
-        tools=[TOOLS_DECL],
+        tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
     )
     send_audio = "AUDIO" in response_modalities
 
