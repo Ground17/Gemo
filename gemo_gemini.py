@@ -183,9 +183,10 @@ async def run_live_loop(
                 live_model = f"models/{live_model}"
             async with client.aio.live.connect(model=live_model, config=config) as session:
                 await session.send_client_content(
-                    turns=types.Content(parts=[types.Part(text=base_prompt)]),
+                    turns={"parts": [{"text": base_prompt}]},
                     turn_complete=True,
                 )
+                await asyncio.sleep(0.2)
 
                 out_queue = asyncio.Queue(maxsize=5)
                 send_task = asyncio.create_task(send_realtime(session, out_queue))
