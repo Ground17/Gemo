@@ -122,12 +122,12 @@ def decide_batch(
 async def _wait_toolcall(session, timeout_s: float = 6.0, debug: bool = False) -> Command:
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
-            if debug:
-                print(
-                    f"[LIVE] msg: tool_call={bool(getattr(msg, 'tool_call', None))} "
-                    f"data={bool(getattr(msg, 'data', None))} "
-                    f"text={bool(getattr(msg, 'text', None))}"
-                )
+            # if debug:
+            #     print(
+            #         f"[LIVE] msg: tool_call={bool(getattr(msg, 'tool_call', None))} "
+            #         f"data={bool(getattr(msg, 'data', None))} "
+            #         f"text={bool(getattr(msg, 'text', None))}"
+            #     )
             if msg.tool_call:
                 for fc in msg.tool_call.function_calls:
                     if fc.name != "set_rc_controls":
@@ -205,7 +205,7 @@ async def run_live_loop(
                     )
 
                     # Timeout: if no tool_call arrives, return defaults and continue.
-                    cmd = await _wait_toolcall(session, debug=True)
+                    cmd = await _wait_toolcall(session, debug=False)
                     on_command(cmd)
 
                     await asyncio.sleep(loop_delay_s)
