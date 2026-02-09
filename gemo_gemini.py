@@ -124,7 +124,7 @@ async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 2.5) -> Com
 
     # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
     b64 = base64.b64encode(jpeg).decode("utf-8")
-    await session.send_realtime_input(media={"data": b64, "mime_type": "image/jpeg"})
+    await session.send_realtime_input(video={"data": b64, "mime_type": "image/jpeg"})
 
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
