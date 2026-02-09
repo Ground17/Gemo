@@ -1,4 +1,4 @@
-import os, asyncio, time
+import os, asyncio, time, base64
 from dataclasses import dataclass
 from typing import Literal
 
@@ -46,14 +46,14 @@ def make_silence_pcm16(rate: int = 16000, duration_s: float = 0.10) -> bytes:
 
 def make_client():
     """
-    - ??: Gemini Developer API (GEMINI_API_KEY)
-    - Live/Vertex ? ?: VERTEX_PROJECT + VERTEX_LOCATION ??? vertexai=True? ??
+    - Dev API: GEMINI_API_KEY
+    - Vertex: VERTEX_PROJECT + VERTEX_LOCATION
     """
     project = os.getenv("VERTEX_PROJECT")
     location = os.getenv("VERTEX_LOCATION")
     if project and location:
         return genai.Client(vertexai=True, project=project, location=location)
-    return genai.Client()
+    return genai.Client(http_options={"api_version": "v1beta"})
 
 def _sanitize(drive: str, steer: str, reason: str = "") -> Command:
     if drive not in ("FORWARD","STOP","REVERSE"):
@@ -120,14 +120,11 @@ def decide_batch(
 async def _decide_live_once(session, jpeg: bytes, timeout_s: float = 2.5) -> Command:
     # 1) Send silence (PCM16 16kHz) first to stabilize the native-audio model.
     silence = make_silence_pcm16(rate=16000, duration_s=0.10)
-    await session.send_realtime_input(
-        audio=types.Blob(data=silence, mime_type="audio/pcm;rate=16000")
-    )
+    await session.send_realtime_input(audio={"data": silence, "mime_type": "audio/pcm"})
 
     # 2) Then send video (JPEG frame) — send_realtime_input accepts one at a time.
-    await session.send_realtime_input(
-        media=types.Blob(data=jpeg, mime_type="image/jpeg")
-    )
+    b64 = base64.b64encode(jpeg).decode("utf-8")
+    await session.send_realtime_input(media={"data": b64, "mime_type": "image/jpeg"})
 
     async def wait_toolcall() -> Command:
         async for msg in session.receive():
@@ -167,19 +164,16 @@ async def run_live_loop(
 ):
     client = make_client()
 
-    config = {
-        "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
-        # native-audio is most stable with AUDIO modality.
-        "response_modalities": ["AUDIO"],
-        # Use enum value per Live API docs.
-        "media_resolution": types.MediaResolution.MEDIA_RESOLUTION_LOW,
-    }
+    config = types.LiveConnectConfig(
+        response_modalities=["AUDIO"],
+        tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
+    )
 
     while True:
         try:
             async with client.aio.live.connect(model=model, config=config) as session:
                 await session.send_client_content(
-                    turns={"role": "user", "parts": [{"text": base_prompt}]},
+                    turns=types.Content(parts=[types.Part(text=base_prompt)]),
                     turn_complete=True,
                 )
 
