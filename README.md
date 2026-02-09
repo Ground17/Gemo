@@ -18,6 +18,7 @@ Gemo is an RC car controller that uses Google Gemini, a Raspberry Pi camera, and
 - Steering pulse control: short left/right pulses with a minimum interval.
 - Logging includes command, reason (optional), and elapsed time since the last log.
 - Retry handling for transient 500 errors in batch mode.
+ - Live models can be unstable or intermittently fail depending on model version, rollout, or API conditions.
 
 ## Usage
 

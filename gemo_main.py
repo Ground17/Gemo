@@ -23,6 +23,16 @@ def capture_jpeg_bytes(cam: Picamera2) -> bytes:
     return buf.getvalue()
 
 def apply_cmd(cmd: Command, drive_ch: TB6612Channel, steer: SteeringPulse, drive_speed: float):
+    steer_action = None
+    if cmd.steer == "LEFT":
+        steer_action = steer.left
+    elif cmd.steer == "RIGHT":
+        steer_action = steer.right
+
+    if steer_action and cmd.drive in ("FORWARD", "REVERSE"):
+        # When moving, pulse steering before and after the drive pulse.
+        steer_action()
+
     if cmd.drive == "FORWARD":
         drive_ch.forward(drive_speed)
     elif cmd.drive == "REVERSE":
@@ -30,10 +40,8 @@ def apply_cmd(cmd: Command, drive_ch: TB6612Channel, steer: SteeringPulse, drive
     else:
         drive_ch.stop()
 
-    if cmd.steer == "LEFT":
-        steer.left()
-    elif cmd.steer == "RIGHT":
-        steer.right()
+    if steer_action:
+        steer_action()
     else:
         steer.center()
 
@@ -43,7 +51,7 @@ def main():
     ap.add_argument("--model", default=None)
     ap.add_argument("--fps", type=float, default=5.0)
     ap.add_argument("--drive_speed", type=float, default=0.45)
-    ap.add_argument("--drive_pulse", type=float, default=0.12)
+    ap.add_argument("--drive_pulse", type=float, default=1.20)
     ap.add_argument("--steer_pulse", type=float, default=0.10)
     ap.add_argument("--steer_power", type=float, default=0.80)
     args = ap.parse_args()
