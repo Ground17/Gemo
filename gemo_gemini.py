@@ -1,4 +1,4 @@
-import os, asyncio, time, base64
+import os, asyncio, time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -157,7 +157,7 @@ async def run_live_loop(
     client = make_client()
 
     # native-audio models require AUDIO modality.
-    response_modalities = ["AUDIO"] if "native-audio" in model else ["TEXT"]
+    response_modalities = ["TEXT"]
     config = types.LiveConnectConfig(
         response_modalities=response_modalities,
         tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
@@ -168,7 +168,8 @@ async def run_live_loop(
         try:
             while True:
                 msg = await out_queue.get()
-                if msg["mime_type"].startswith("audio/"):
+                mime = msg.mime_type if hasattr(msg, "mime_type") else msg.get("mime_type", "")
+                if mime.startswith("audio/"):
                     await session.send_realtime_input(audio=msg)
                 else:
                     await session.send_realtime_input(media=msg)
@@ -195,17 +196,28 @@ async def run_live_loop(
                     if send_audio:
                         silence = make_silence_pcm16(rate=16000, duration_s=0.10)
                         try:
-                            out_queue.put_nowait({"data": silence, "mime_type": "audio/pcm"})
+                            out_queue.put_nowait(types.Blob(
+                                data=silence,
+                                mime_type="audio/pcm;rate=16000",
+                            ))
                         except asyncio.QueueFull:
                             _ = out_queue.get_nowait()
-                            out_queue.put_nowait({"data": silence, "mime_type": "audio/pcm"})
+                            out_queue.put_nowait(types.Blob(
+                                data=silence,
+                                mime_type="audio/pcm;rate=16000",
+                            ))
 
-                    b64 = base64.b64encode(jpeg).decode("utf-8")
                     try:
-                        out_queue.put_nowait({"data": b64, "mime_type": "image/jpeg"})
+                        out_queue.put_nowait(types.Blob(
+                            data=jpeg,
+                            mime_type="image/jpeg",
+                        ))
                     except asyncio.QueueFull:
                         _ = out_queue.get_nowait()
-                        out_queue.put_nowait({"data": b64, "mime_type": "image/jpeg"})
+                        out_queue.put_nowait(types.Blob(
+                            data=jpeg,
+                            mime_type="image/jpeg",
+                        ))
 
                     # Timeout: if no tool_call arrives, return defaults and continue.
                     cmd = await _wait_toolcall(session)
