@@ -171,8 +171,6 @@ async def run_live_loop(
         "tools": [{"function_declarations": TOOLS_DECL.function_declarations}],
         # native-audio is most stable with AUDIO modality.
         "response_modalities": ["AUDIO"],
-        # Lower resolution reduces token usage/latency for live video.
-        "media_resolution": "low",
     }
 
     while True:
