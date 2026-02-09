@@ -15,7 +15,7 @@ PWMB, BIN1, BIN2 = 19, 27, 22     # steer (B)
 STBY = 25                         # standby (shared)
 
 DEFAULT_BATCH_MODEL = "gemini-3-flash-preview"
-DEFAULT_LIVE_MODEL  = "gemini-2.5-flash-native-audio-preview-09-2025"
+DEFAULT_LIVE_MODEL  = "gemini-2.5-flash-native-audio-preview-12-2025"
 
 def capture_jpeg_bytes(cam: Picamera2) -> bytes:
     buf = io.BytesIO()
