@@ -171,6 +171,7 @@ async def run_live_loop(
         tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
     )
     send_audio = "AUDIO" in response_modalities
+    debug_frames = True
 
     while True:
         try:
@@ -186,6 +187,8 @@ async def run_live_loop(
 
                 while True:
                     jpeg = frame_provider()
+                    if debug_frames:
+                        print(f"[LIVE] frame_bytes={len(jpeg)}")
 
                     if send_audio:
                         silence = make_silence_pcm16(rate=16000, duration_s=0.10)
