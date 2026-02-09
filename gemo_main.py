@@ -50,6 +50,8 @@ def main():
 
     if args.mode == "live":
         # Live mode uses the native-audio preview model by default.
+        if args.model and args.model != DEFAULT_LIVE_MODEL:
+            print(f"[LIVE] overriding model {args.model} -> {DEFAULT_LIVE_MODEL}")
         args.model = DEFAULT_LIVE_MODEL
         # Live video input is expected at ~1 FPS.
         if args.fps > 1.0:
