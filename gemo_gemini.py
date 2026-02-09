@@ -36,6 +36,8 @@ BASE_PROMPT_DEFAULT = (
     "Analyze the front camera image and decide the safest drive/steer. "
     "If uncertain, choose STOP and CENTER. "
     "You MUST respond by calling function set_rc_controls. "
+    "Do not speak or output any text. "
+    "Only call set_rc_controls. "
     "The reason must be a short noun phrase, no punctuation."
 )
 
@@ -196,6 +198,10 @@ async def run_live_loop(
                     b64 = base64.b64encode(jpeg).decode("utf-8")
                     await session.send_realtime_input(
                         media={"data": b64, "mime_type": "image/jpeg"}
+                    )
+                    await session.send_client_content(
+                        turns={"parts": [{"text": base_prompt}]},
+                        turn_complete=True,
                     )
 
                     # Timeout: if no tool_call arrives, return defaults and continue.
