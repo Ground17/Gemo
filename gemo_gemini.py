@@ -157,7 +157,7 @@ async def run_live_loop(
     client = make_client()
 
     # native-audio models require AUDIO modality.
-    response_modalities = ["TEXT"]
+    response_modalities = ["AUDIO"] if "native-audio" in model else ["TEXT"]
     config = types.LiveConnectConfig(
         response_modalities=response_modalities,
         tools=[{"function_declarations": TOOLS_DECL.function_declarations}],
