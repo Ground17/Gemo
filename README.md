@@ -24,6 +24,9 @@ Gemo is an RC car controller that uses Google Gemini, a Raspberry Pi camera, and
 - Retry handling for transient 500 errors in batch mode.
 - Live models can be unstable or intermittently fail depending on model version, rollout, or API conditions.
 
+## Advanced Features
+- Collision avoidance: Ultrasonic sensors can be integrated to detect obstacles and prevent crashes.
+
 ## Usage
 
 ### Basic run (batch mode)
